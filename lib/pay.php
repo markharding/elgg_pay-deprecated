@@ -65,10 +65,15 @@ function pay_get_currency(){
 }
 /* URLS for return, cancel and callabck 
  */
-function pay_urls(){
+function pay_urls($order_guid){
+	//creates an action token open for an hour
+	$user = elgg_get_logged_in_user_entity();
+	$order = get_entity($order_guid);
+	
+	$action_token = create_user_token($user->username, 60);
 	$urls = array('return' => elgg_get_site_url() . 'pay/',
 				  'cancel' => elgg_get_site_url() . 'pay/cancel',
-				  'callback' => elgg_get_site_url() . 'pay/callback'
+				  'callback' => elgg_get_site_url() . 'pay/callback/' . $order_guid . '/' .$action_token,
 				  );
 	return $urls;
 }
@@ -234,11 +239,12 @@ function paypal_handler($params){
 	
 	$currency = pay_get_currency();
 	
-	$urls = pay_urls();
+	$urls = pay_urls($params['order_guid']);
 	
 	$return_url = $urls['return'];
 	$cancel_url = $urls['cancel'];
-	$callback_url =  $urls['callback'];
+	//for callback we should add a '/paypal' so we know the callback should point the the paypal callback handler
+	$callback_url =  $urls['callback'].'/paypal';
 	
 	$paypal_url = 'https://www.sandbox.paypal.com/cgi-bin/webscr';
 	
@@ -272,10 +278,7 @@ function paypal_handler($params){
 function paypal_handler_callback($order_guid){
 	
 	$order = get_entity($order_guid);
-	
-		if($order->subtype != 'pay'){
-			return false;
-		}
+	/*
 	
 	$reciever_address = get_input('receiver_email');
 		if($reciever_address != elgg_get_plugin_setting('paypal_business', 'pay')){
@@ -291,9 +294,9 @@ function paypal_handler_callback($order_guid){
 		if($txn_id == $order->txn_id){
 			return false;
 		}
-	
-	
-	$payment_status = get_input('payment_status');
+		*/
+		
+	$payment_status = $_REQUEST['payment_status'];
 	//We can now assume that the response is legit so we can update the payment status
 	pay_update_order_status($order_guid, $payment_status);
 	

@@ -37,8 +37,6 @@ function pay_init() {
 	
 	elgg_register_event_handler('pagesetup', 'system', 'pay_page_setup');
 	
-	//Permission override for the callbacks to respond to 
-	elgg_register_plugin_hook_handler('permissions_check', 'all', 'pay_permissions_check');
 
 	// Register actions
 	$action_path = elgg_get_plugins_path() . 'pay/actions/pay';
@@ -60,7 +58,7 @@ function pay_init() {
  * URLs take the form of
  *  Basket:       	 pay/basket
  *
- *  Callabck:       pay/callback/<guid>
+ *  Callabck:       pay/callback/<guid>/<auth_token>
  *
  *  View account:    pay/account/<username>
  *  View orders:     pay/account/orders
@@ -84,6 +82,8 @@ function pay_page_handler($page) {
 			break;
 		case 'callback':
 			set_input('guid', $page[1]);
+			set_input('auth_token', $page[2]);
+			set_input('payment_handler', $page[3]);
 			include "$file_dir/callback.php";
 			break;
 		case 'account':
@@ -285,13 +285,3 @@ function pay_page_setup() {
 		elgg_register_menu_item('page', $params);
 	}
 }
-
-/* Allows callback services to update the order status 
- */
-function pay_permissions_check($hook_name, $entity_type, $return_value, $parameters) {	
-	if (elgg_get_context() == 'pay_callback') {
-		return true;
-	}
- 
-	return false;
-} 
