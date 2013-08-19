@@ -23,13 +23,15 @@ $content = pay_get_basket();
 
 if(pay_basket_total() > 0){
 
-elgg_register_menu_item('title', array(
+/*elgg_register_menu_item('title', array(
 	'name' => 'checkout',
 	'text' => elgg_echo('pay:checkout'),
 	'href' => "action/pay/checkout",
 	'link_class' => 'elgg-button elgg-button-action',
 	'is_action' => true,
-));
+));*/
+//for now we are just going to forward to the payment
+forward(elgg_add_action_tokens_to_url('action/pay/checkout'));
 }
 
 

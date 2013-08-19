@@ -14,6 +14,7 @@ function pay_init() {
 
 	// register a library of helper functions
 	elgg_register_library('elgg:pay', elgg_get_plugins_path() . 'pay/lib/pay.php');
+        elgg_load_library('elgg:pay');
 
 	// Extend CSS
 	elgg_extend_view('css/elgg', 'pay/css');
@@ -21,6 +22,9 @@ function pay_init() {
 	// Register a page handler, so we can have nice URLs
 	elgg_register_page_handler('pay', 'pay_page_handler');
 
+        // Register a generic Paypal IPN endpoint to handle recurring payments
+        elgg_register_page_handler('paypalgenericipn', 'paypal_generic_ipn_handler');
+        
 	// Register URL handlers
 	elgg_register_entity_url_handler('object', 'pay', 'pay_url_override');
 
@@ -48,9 +52,20 @@ function pay_init() {
 	elgg_register_action("pay/confirm", "$action_path/process.php");
 	elgg_register_action("pay/appeal", "$action_path/appeal.php");
 	
+        elgg_register_action("pay/cancelsubscription", "$action_path/cancelsubscription.php");
+        
+	elgg_register_action("pay/withdraw", "$action_path/withdraw.php");
+	elgg_register_action("pay/withdraw/complete", "$action_path/withdraw_complete.php");
+	
 	elgg_register_action("pay/admin/accept", "$action_path/admin/accept.php");
 	elgg_register_action("pay/admin/decline", "$action_path/admin/decline.php");
 	elgg_register_action("pay/admin/delete", "$action_path/admin/delete.php");
+        
+         // Extend public pages
+        elgg_register_plugin_hook_handler('public_pages', 'walled_garden', function ($hook, $handler, $return, $params){
+            $pages = array('paypalgenericipn');
+            return array_merge($pages, $return);
+        });
 }
 
 /**
@@ -77,6 +92,9 @@ function pay_page_handler($page) {
 
 	$page_type = $page[0];
 	switch ($page_type) {
+		case 'admin':
+			include "$file_dir/admin.php";
+			break;
 		case 'basket':
 			include "$file_dir/basket.php";
 			break;
@@ -89,6 +107,14 @@ function pay_page_handler($page) {
 		case 'account':
 			$sub_dir = $page[1];
 			switch($sub_dir) {
+				case 'withdraw':
+					set_input('username', $page[2]); 
+					include "$file_dir/withdraw.php";
+					break;
+				case 'seller':
+					set_input('username', $page[2]); 
+					include "$file_dir/seller_account.php";
+					break;
 				case 'orders':
 					include "$file_dir/orders.php";
 					break;
@@ -97,7 +123,7 @@ function pay_page_handler($page) {
 					include "$file_dir/view_order.php";
 					break;
 				default:
-					set_input('username', $page[2]); 
+					set_input('username', $page[1]);
 					include "$file_dir/account.php";
 			}
 		default:
@@ -193,6 +219,53 @@ function pay_entity_menu_setup($hook, $type, $return, $params) {
 	} elseif (elgg_get_context() == 'pay'){
 		$return = NULL;
 		
+		//for now, if the seller guid is equal to the page owner, it shows the sellers amount
+		$amount =  $entity->seller_guid == elgg_get_page_owner_guid() ? $entity->seller_amount : $entity->amount;
+		$currency = pay_get_currency();
+		$options = array(
+			'name' => 'amount',
+			'text' => '<b>' . $currency['symbol'] . $amount. '</b>',
+			'title' => elgg_echo('pay:amount'),
+			'href' => '#',
+			'priority' => 50,
+		);
+		$return[] = ElggMenuItem::factory($options);
+		
+		$options = array(
+			'name' => 'status',
+			'text' => elgg_echo('pay:account:order:status:' . $entity->status),
+			'title' => elgg_echo('pay:account:order:status'),
+			'href' => '#',
+			'priority' => 100,
+		);
+		$return[] = ElggMenuItem::factory($options);
+		
+		if($entity->order){
+			$options = array(
+				'name' => 'view',
+				'text' => elgg_echo('pay:account:order:view'),
+				'title' => elgg_echo('pay:account:order:view'),
+				'href' => $entity->getUrl(),
+				'priority' => 150,
+			);
+			$return[] = ElggMenuItem::factory($options);
+                        
+                        if ($entity->recurring) {
+                            $options = array(
+                                    'name' => 'cancelsubscription',
+                                    'text' => elgg_echo('pay:account:order:cancel'),
+                                    'title' => elgg_echo('pay:account:order:cancel'),
+                                    'href' => "action/pay/cancelsubscription?order_guid={$entity->getGUID()}",
+                                    'confirm' => elgg_echo('cancelsubscriptionconfirm'),
+                                    'priority' => 160,
+                            );
+                            $return[] = ElggMenuItem::factory($options);
+                        }
+		}
+		
+		
+	} elseif (elgg_get_context() == 'pay_admin') {
+		$return = NULL;
 		$currency = pay_get_currency();
 		$options = array(
 			'name' => 'amount',
@@ -213,15 +286,34 @@ function pay_entity_menu_setup($hook, $type, $return, $params) {
 		$return[] = ElggMenuItem::factory($options);
 		
 		$options = array(
-			'name' => 'view',
-			'text' => elgg_echo('pay:account:order:view'),
-			'title' => elgg_echo('pay:account:order:view'),
-			'href' => $entity->getUrl(),
-			'priority' => 150,
+			'name' => 'paypal_address',
+			'text' => $entity->paypal_address,
+			'href' => '#',
+			'priority' => 125,
 		);
 		$return[] = ElggMenuItem::factory($options);
 		
+		//Mark as sent
+		if($entity->status != 'Completed'){
+			$options = array(
+				'name' => 'change_status',
+				'text' => elgg_echo('pay:withdraw:mark:completed'),
+				'href' => 'action/pay/withdraw/complete?guid=' . $entity->guid,
+				'is_action' => true,
+				'priority' => 150,
+			);
+			$return[] = ElggMenuItem::factory($options);
+		}
 		
+		$options = array(
+			'name' => 'delete',
+			'text' => elgg_view_icon('delete'),
+			'title' => elgg_echo('delete:this'),
+			'href' => "action/pay/basket/delete?guid={$entity->getGUID()}",
+			'confirm' => elgg_echo('deleteconfirm'),
+			'priority' => 300,
+		);
+		$return[] = ElggMenuItem::factory($options);
 	}
 	return $return;
 }
@@ -264,13 +356,13 @@ function pay_page_setup() {
 			$tooltip .= " (" . elgg_echo("pay:topbar:count", array(count($basket))) . ")";
 		}
 
-		elgg_register_menu_item('topbar', array(
+		/*elgg_register_menu_item('topbar', array(
 			'name' => 'pay_cart',
 			'href' => 'pay/basket',
 			'text' => $text,
 			'priority' => 650,
 			'title' => $tooltip,
-		));
+		));*/
 	}
 	
 	//USER SETTINGS
@@ -283,5 +375,66 @@ function pay_page_setup() {
 			'href' => "pay/account",
 		);
 		elgg_register_menu_item('page', $params);
+	}
+	
+	//Pay pages -- add the market into there as well
+	if ((elgg_get_context() == "pay" || elgg_get_context() == "market" || elgg_get_context() == "pay_basket") && elgg_get_logged_in_user_guid()) {
+		$user = elgg_get_logged_in_user_entity();
+		
+		/*//BASKET
+		$class = "elgg-icon elgg-icon-shop-cart";
+		$tooltip = elgg_echo("pay:basket");
+		
+		$basket = elgg_get_entities(array(
+									'type' => 'object',
+									'subtype' => 'pay_basket',
+									'owner_guid' => elgg_get_logged_in_user_guid(),
+									));
+																		
+		// get unread messages
+		$num_items = count($basket);
+		if ($num_items != 0) {
+			$text .= "<span class=\"messages-new\">$num_items</span>";
+			$tooltip .= " (" . elgg_echo("pay:topbar:count", array(count($basket))) . ")";
+		}
+
+		$params = array(
+			'name' => 'pay_cart',
+			'href' => 'pay/basket',
+			'text' => $tooltip,
+			'section' => 'payment',
+			'title' => $tooltip,
+		);
+		elgg_register_menu_item('page', $params);*/
+		
+		//SELLER ACCOUNT
+		$params = array(
+			'name' => 'pay_account_seller',
+			'href' => 'pay/account/seller/'.elgg_get_page_owner_entity()->username,
+			'text' => elgg_echo('pay:account:seller'),
+			'section' => 'payment',
+		);
+		elgg_register_menu_item('page', $params);
+		
+		//Purchaces
+		$params = array(
+			'name' => 'pay_account',
+			'href' => 'pay/account/'.elgg_get_page_owner_entity()->username,
+			'text' => elgg_echo('pay:account'),
+			'section' => 'payment',
+		);
+		elgg_register_menu_item('page', $params);
+		
+		if(elgg_is_admin_logged_in()){
+			//Admin link
+			$params = array(
+				'name' => 'pay_admin',
+				'href' => 'pay/admin',
+				'text' => elgg_echo('pay:admin:withdraw'),
+				'section' => 'payment',
+			);
+			elgg_register_menu_item('page', $params);
+		}
+		
 	}
 }
