@@ -39,4 +39,25 @@ $body .= '<br />';
 $body .= elgg_view('input/text',array('name'=>'params[paypal_business]','value'=>$paypal_business_email));
 $body .= '<br />';
 
+
+$paypal_api_username = elgg_get_plugin_setting('paypal_api_username', 'pay');
+$body .= elgg_echo('pay:paypal:api:username');
+$body .= '<br />';
+$body .= elgg_view('input/text',array('name'=>'params[paypal_api_username]','value'=>$paypal_api_username));
+$body .= '<br />';
+
+$paypal_api_password = elgg_get_plugin_setting('paypal_api_password', 'pay');
+$body .= elgg_echo('pay:paypal:api:password');
+$body .= '<br />';
+$body .= elgg_view('input/text',array('name'=>'params[paypal_api_password]','value'=>$paypal_api_password));
+$body .= '<br />';
+
+
+$paypal_api_signature = elgg_get_plugin_setting('paypal_api_signature', 'pay');
+$body .= elgg_echo('pay:paypal:api:signature');
+$body .= '<br />';
+$body .= elgg_view('input/text',array('name'=>'params[paypal_api_signature]','value'=>$paypal_api_signature));
+$body .= '<br />';
+
+
 echo $body;
