@@ -12,7 +12,7 @@ $item = get_entity($item_guid);
 
 
 if($item->delete()){
-	system_message(elgg_echo("pay:bakset:item:remove:success"));
+	system_message(elgg_echo("pay:basket:item:remove:success"));
 } else {
 	register_error(elgg_echo("pay:basket:item:remove:failed"));
 }

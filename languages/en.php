@@ -17,8 +17,10 @@ $english = array(
 	'pay:basket' => 'Basket',
 	'pay:basket:total' => '<b>Your total is </b>',
 	'pay:basket:empty' => 'Your basket is empty',
-	'pay:basket:item:add:success' => 'Item successfuly added to basket',
+	'pay:basket:item:add:success' => 'Item successfully added to basket',
 	'pay:basket:item:add:failed' => 'Item could not be added to the basket',
+	'pay:basket:item:remove:success' => 'Item successfully removed',
+	'pay:basket:item:update:success' => 'Item successfully updated',
 	
 	'pay:checkout' => 'Checkout',
 	'pay:account' => 'Payment Account',
