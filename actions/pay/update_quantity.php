@@ -27,7 +27,7 @@ $item->price = $price;
 
 
 if($item->save()){
-	system_message(elgg_echo("pay:bakset:item:update:success"));
+	system_message(elgg_echo("pay:basket:item:update:success"));
 } else {
 	register_error(elgg_echo("pay:basket:item:update:failed"));
 }

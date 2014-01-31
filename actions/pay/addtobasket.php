@@ -30,7 +30,7 @@ $item->owner_guid = $user_guid;
 $item->access_id = 0; 
 
 if($item->save()){
-	system_message(elgg_echo("pay:bakset:item:add:success"));
+	system_message(elgg_echo("pay:basket:item:add:success"));
 } else {
 	register_error(elgg_echo("pay:basket:item:add:failed"));
 }
